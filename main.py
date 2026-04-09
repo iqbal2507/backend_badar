@@ -44,4 +44,5 @@ def hello_world():
 
 if __name__ == '__main__':
     print(f"SECRET_KEY from os.getenv: {os.getenv('SECRET_KEY')}")
-    app.run(debug=True, port=5001)
+    app.run(host="0.0.0.0", port=5001, debug=True)
+    # app.run(debug=True, port=5001)
