@@ -10,6 +10,7 @@ from flask_jwt_extended import get_jwt_identity
 
 parameter = Blueprint('parameter', __name__)
 
+
 @parameter.route("/user", methods=["GET"])
 @jwt_required()
 def user() :
@@ -177,7 +178,6 @@ def get_profil():
             a.userid, 
             a.username, 
             a.password,
-            a.roleid, 
             a.amtfail, 
             a.lmtfail, 
             a.no_hp, 
@@ -216,7 +216,7 @@ def update_profile():
     # Ambil data dari body
     username = data.get("username")
     password = data.get("password")  # bisa kosong atau None
-    roleid = data.get("roleid")
+    # roleid = data.get("roleid")
     no_hp = data.get("no_hp")
     tanggal_lahir = data.get("tanggal_lahir")  # dalam format YYYY-MM-DD
     kd_cabang = data.get("kd_cabang")
@@ -235,7 +235,6 @@ def update_profile():
         UPDATE dbo.user SET
             username = ?,
             password = ?,
-            roleid = ?,
             no_hp = ?,
             tanggal_lahir = ?,
             kd_cabang = ?,
@@ -250,7 +249,6 @@ def update_profile():
             cursor.execute(update_query, (
                 username,
                 password_to_use,
-                roleid,
                 no_hp,
                 tanggal_lahir,
                 kd_cabang,
@@ -415,7 +413,7 @@ def sub_menu():
     query_form = (
         f""" select b.menu_id, b.menu_name, a.* from dbo.sub_role_menu a
         inner join dbo.role_menu b on left(a.sub_menu_id, 1) = left(b.menu_id,1)
-order by b.menu_id """)
+order by b.menu_id, a.sub_menu_id """)
     df = pd.read_sql(query_form, conn_dsn)
     current_user = get_jwt_identity()
     result = df.to_dict(orient="records")
@@ -503,7 +501,7 @@ def role_menu():
       	'id', srm.sub_menu_id, 
         'name', srm.sub_menu_name,
         'checked', case when z.menu_id  is null then 'false' else 'true' end
-      )
+      ) ORDER BY srm.sub_menu_id
     )
     FROM dbo.sub_role_menu srm
     left join dbo.user_role_menu z on srm.sub_menu_id = z.menu_id and z.roleid = ?
