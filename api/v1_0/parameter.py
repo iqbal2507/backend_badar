@@ -21,16 +21,40 @@ def role():
     result = df.to_dict(orient="records")
     return jsonify(logged_in_as=current_user, data=result), 200
 
+
+
 @parameter.route("/kecamatan", methods=["GET"])
 @single_session_required
-def kecamatan() :
+def kecamatan():
     conn_dsn = conn.dsn()
-    query_form = (
-        f""" select upper(nama_value) as kecamatan from dbo.parameter_kecamatan """)
+    query_form = """
+        SELECT 
+            param_value, 
+            UPPER(nama_value) AS nama_value, 
+            join_value 
+        FROM dbo.parameter_kecamatan
+    """
     df = pd.read_sql(query_form, conn_dsn)
     current_user = get_jwt_identity()
     result = df.to_dict(orient="records")
     return jsonify(logged_in_as=current_user, data=result), 200
+
+@parameter.route("/desa", methods=["GET"])
+@single_session_required
+def desa():
+    conn_dsn = conn.dsn()
+    query_form = """
+        SELECT 
+            param_value, 
+            UPPER(nama_value) AS nama_value, 
+            join_value 
+        FROM dbo.parameter_desa
+    """
+    df = pd.read_sql(query_form, conn_dsn)
+    current_user = get_jwt_identity()
+    result = df.to_dict(orient="records")
+    return jsonify(logged_in_as=current_user, data=result), 200
+
 
 @parameter.route("/user/profile", methods=["GET"])
 @single_session_required
