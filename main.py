@@ -42,7 +42,18 @@ def hello_world():
     secret_key = app.config['SECRET_KEY']
     return f'Hello, World! The secret key is: {secret_key}'
 
+from flask import send_from_directory
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+
+@app.route("/uploads/<filename>")
+def uploaded_file(filename):
+    print("DIMINTA FILE:", filename)
+    print("PATH:", os.path.join(UPLOAD_FOLDER, filename))
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
 if __name__ == '__main__':
     print(f"SECRET_KEY from os.getenv: {os.getenv('SECRET_KEY')}")
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001, use_reloader=False)
     # app.run(debug=True, port=5001)
