@@ -103,8 +103,12 @@ def register():
     lmtfail = request.json.get("lmtfail")
     kd_cabang = request.json.get("kd_cabang")
     no_hp = request.json.get("no_hp")
+    alamat = request.json.get("alamat")
     tanggal_lahir = request.json.get("tanggal_lahir")
     jenis_kelamin = request.json.get("jenis_kelamin")
+    file = request.json.get("file")
+    provinsi = request.json.get("provinsi")
+    kota = request.json.get("kota")
 
     conn_dsn = conn.dsn()
     cursor = conn_dsn.cursor()
@@ -118,12 +122,12 @@ def register():
 
     cursor.execute("""
         INSERT INTO dbo.user (
-           userid, username, password, roleid, amtfail, lmtfail, kd_cabang,
-           no_hp, tanggal_lahir, jenis_kelamin, crtuser, crtdate
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           userid, username, password, roleid, amtfail, lmtfail, kd_cabang,alamat,
+           no_hp, tanggal_lahir, jenis_kelamin,file,provinsi,kota, crtuser, crtdate
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?, ?, ?)
     """,
-    userid, username, hashed_password, roleid, amtfail, lmtfail, kd_cabang,
-    no_hp, tanggal_lahir, jenis_kelamin, current_user, datetime.now())
+    userid, username, hashed_password, roleid, amtfail, lmtfail, kd_cabang,alamat,
+    no_hp, tanggal_lahir, jenis_kelamin, file,provinsi,kota, current_user, datetime.now())
 
     conn_dsn.commit()
     return make_response(jsonify({"msg": "User created successfully"}), 201)

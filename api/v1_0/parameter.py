@@ -56,6 +56,74 @@ def desa():
     return jsonify(logged_in_as=current_user, data=result), 200
 
 
+
+@parameter.route("/provinsi", methods=["GET"])
+@single_session_required
+def provinsi():
+    conn_dsn = conn.dsn()
+    query_form = """
+        SELECT 
+            param_value, 
+            UPPER(nama_value) AS nama_value, 
+            join_value 
+        FROM dbo.parameter_provinsi
+    """
+    df = pd.read_sql(query_form, conn_dsn)
+    current_user = get_jwt_identity()
+    result = df.to_dict(orient="records")
+    return jsonify(logged_in_as=current_user, data=result), 200
+
+@parameter.route("/kota", methods=["GET"])
+@single_session_required
+def kota():
+    conn_dsn = conn.dsn()
+    query_form = """
+        SELECT 
+            param_value, 
+            UPPER(nama_value) AS nama_value, 
+            join_value 
+        FROM dbo.parameter_kota
+    """
+    df = pd.read_sql(query_form, conn_dsn)
+    current_user = get_jwt_identity()
+    result = df.to_dict(orient="records")
+    return jsonify(logged_in_as=current_user, data=result), 200
+
+
+@parameter.route("/tema", methods=["GET"])
+@single_session_required
+def tema():
+    conn_dsn = conn.dsn()
+    query_form = """
+        SELECT 
+            param_value, 
+            UPPER(nama_value) AS nama_value, 
+            join_value 
+        FROM dbo.parameter_tema
+    """
+    df = pd.read_sql(query_form, conn_dsn)
+    current_user = get_jwt_identity()
+    result = df.to_dict(orient="records")
+    return jsonify(logged_in_as=current_user, data=result), 200
+
+
+@parameter.route("/sosmed", methods=["GET"])
+@single_session_required
+def sosmed():
+    conn_dsn = conn.dsn()
+    query_form = """
+        SELECT 
+            param_value, 
+            UPPER(nama_value) AS nama_value, 
+            join_value 
+        FROM dbo.parameter_sosmed
+    """
+    df = pd.read_sql(query_form, conn_dsn)
+    current_user = get_jwt_identity()
+    result = df.to_dict(orient="records")
+    return jsonify(logged_in_as=current_user, data=result), 200
+
+
 @parameter.route("/user/profile", methods=["GET"])
 @single_session_required
 def get_profil():
@@ -78,7 +146,10 @@ def get_profil():
             a.rt,
             a.rw,
             a.kecamatan,
-            a.desa
+            a.desa,
+            a.file,
+            a.provinsi,
+            a.kota
         FROM dbo.user a
         WHERE a.userid = ?
     """
@@ -94,6 +165,17 @@ def get_profil():
 @parameter.route("/user/profile", methods=["PUT"])
 @single_session_required
 def update_profile():
+
+
+    print("MASUK FUNCTION")
+
+    print("CONTENT TYPE:", request.content_type)
+
+    print("REQUEST JSON:", request.json)
+
+    print("REQUEST FORM:", request.form)
+
+
     upduser = get_jwt_identity()
     update = datetime.now()
     conn_dsn = conn.dsn()
@@ -116,6 +198,17 @@ def update_profile():
     tanggal_lahir = data.get("tanggal_lahir")  # dalam format YYYY-MM-DD
     kd_cabang = data.get("kd_cabang")
     jenis_kelamin = data.get("jenis_kelamin")
+    alamat = data.get("alamat")
+    kecamatan = data.get("kecamatan")
+    desa = data.get("desa")
+    file = data.get("file")
+    provinsi = data.get("provinsi")
+    kota = data.get("kota")
+    userid = get_jwt_identity()
+
+    print("CONTENT TYPE:", request.content_type)
+    print("FILES:", request.files)
+    print("FORM:", request.form)
 
     # Gunakan password lama jika tidak ada perubahan
     if not password or password == old_password:
@@ -134,6 +227,12 @@ def update_profile():
             tanggal_lahir = ?,
             kd_cabang = ?,
             jenis_kelamin = ?,
+            alamat = ?,
+            kecamatan = ?,
+            desa = ?,
+            file = ?,
+            provinsi = ?,
+            kota = ?,
             upduser = ?,
             upddate = ?
         WHERE userid = ?
@@ -148,14 +247,25 @@ def update_profile():
                 tanggal_lahir,
                 kd_cabang,
                 jenis_kelamin,
+                alamat,
+                kecamatan,
+                desa,
+                file,
+                provinsi,
+                kota,
                 upduser,
                 update,
-                upduser
+                userid
 
             ))
             conn_dsn.commit()
+
+
+
         return jsonify({"message": "User berhasil diupdate"}), 200
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return make_response(jsonify({"error": str(e)}), 500)
 
 
