@@ -1,57 +1,286 @@
 # api/v1_0/MenuMonitoring.py
 
-from flask import Blueprint, jsonify, make_response
+import json
+from flask import Blueprint, jsonify, request, make_response
 import pandas as pd
 import config.connection as conn
-from flask_jwt_extended import get_jwt_identity
+
+from flask_jwt_extended import (
+    get_jwt_identity,
+    get_jwt
+)
+
 from api.v1_0.security import single_session_required
 
-MenuMonitoring = Blueprint('MenuMonitoring', __name__)
+MenuMonitoring = Blueprint("MenuMonitoring", __name__)
 
-# ================= GET ALL =================
+
+# =========================================================
+# GET ALL WITH FILTER & PAGINATION
+# =========================================================
 @MenuMonitoring.route("", methods=["GET"])
 @single_session_required
 def get_MenuMonitoring():
 
     conn_dsn = conn.dsn()
 
-    query = """
-        SELECT
-            id,
-            medsos,
-            tema,
-            tgl_input,
-            user_input,
-            link,
-            username,
-            title,
-            view,
-            liked,
-            comment,
-            share,
-            saved,
-            engagement
-        FROM dbo.monitoring_link
-        ORDER BY id DESC
-    """
-
-    df = pd.read_sql(query, conn_dsn)
-
-    # convert date -> string
-    if 'tgl_input' in df.columns:
-        df['tgl_input'] = df['tgl_input'].astype(str)
-
     current_user = get_jwt_identity()
 
-    result = df.to_dict(orient="records")
+    claims = get_jwt()
+    role = claims.get("role", "user")
 
-    return jsonify(
-        logged_in_as=current_user,
-        data=result
-    ), 200
+    # =========================
+    # FILTER
+    # =========================
+    medsos_filter = request.args.get("medsos", "").strip()
+    tgl_awal = request.args.get("tgl_awal")
+    tgl_akhir = request.args.get("tgl_akhir")
+    search_username = request.args.get("search_username")
+    wilayah_filter = request.args.get("wilayah", "").strip()
+
+    # =========================
+    # PAGINATION
+    # =========================
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 10))
+
+    offset = (page - 1) * per_page
+
+    print("🔍 FILTER:")
+    print("medsos =", medsos_filter)
+    print("tgl_awal =", tgl_awal)
+    print("tgl_akhir =", tgl_akhir)
+    print("search_username =", search_username)
+    print("wilayah_filter =", wilayah_filter)
+
+    # =====================================================
+    # BASE QUERY
+    # =====================================================
+    query = """
+        SELECT
+            mm.id,
+            mm.medsos,
+            mm.tema,
+
+            TO_CHAR(mm.tgl_input, 'YYYY-MM-DD') AS tgl_input,
+
+            u.kota AS wilayah,
+
+            mm.user_input,
+            mm.link,
+            mm.username,
+            REGEXP_REPLACE(mm.title, '[^[:ascii:]]', '', 'g') AS title,
+            COALESCE(mm.view, '0') AS view,
+            COALESCE(mm.liked, '0') AS liked,
+            COALESCE(mm.comment, '0') AS comment,
+            COALESCE(mm.share, '0') AS share,
+            COALESCE(mm.saved, '0') AS saved,
+            COALESCE(mm.engagement, '0') AS engagement,
+
+            mm.video_id
+
+        FROM dbo.monitoring_link mm
+        LEFT JOIN dbo.user u
+            ON u.userid = mm.user_input
+    """
+
+    # =====================================================
+    # WHERE
+    # =====================================================
+    where_conditions = []
+    params = []
+
+    # =====================================================
+    # ROLE FILTER
+    # =====================================================
+    if role == "02":
+
+        where_conditions.append("""
+            mm.user_input = ?
+        """)
+
+        params.append(current_user)
+
+    elif role == "03":
+
+        user_query = """
+            SELECT kota
+            FROM dbo.user
+            WHERE userid = ?
+        """
+
+        user_df = pd.read_sql(
+            user_query,
+            conn_dsn,
+            params=[current_user]
+        )
+
+        if not user_df.empty:
+
+            user_kota = user_df.at[0, "kota"]
+
+            where_conditions.append("""
+                mm.user_input IN (
+                    SELECT userid
+                    FROM dbo.user
+                    WHERE kota = ?
+                )
+            """)
+
+            params.append(user_kota)
+
+    # =====================================================
+    # FILTER MEDSOS
+    # =====================================================
+    if medsos_filter and medsos_filter.upper() != "ALL":
+
+        where_conditions.append("""
+            UPPER(mm.medsos) = UPPER(?)
+        """)
+
+        params.append(medsos_filter)
+
+        # =====================================================
+        # FILTER wilayah
+        # =====================================================
+
+    if wilayah_filter and wilayah_filter.upper() != "ALL":
+        where_conditions.append("""
+             UPPER(u.kota) = UPPER(?)
+         """)
+
+        params.append(wilayah_filter)
+
+    # =====================================================
+    # FILTER TANGGAL
+    # =====================================================
+    if tgl_awal:
+
+        where_conditions.append("""
+            mm.tgl_input >= ?
+        """)
+
+        params.append(tgl_awal)
+
+    if tgl_akhir:
+
+        where_conditions.append("""
+            mm.tgl_input <= ?
+        """)
+
+        params.append(tgl_akhir)
+
+    # =====================================================
+    # SEARCH USERNAME
+    # =====================================================
+    if search_username:
+
+        where_conditions.append("""
+            (
+                LOWER(mm.username) LIKE LOWER(?)
+                OR LOWER(mm.user_input) LIKE LOWER(?)
+            )
+        """)
+
+        search_param = f"%{search_username}%"
+
+        params.append(search_param)
+        params.append(search_param)
+
+    # =====================================================
+    # COMBINE WHERE
+    # =====================================================
+    where_clause = ""
+
+    if where_conditions:
+        where_clause = " WHERE " + " AND ".join(where_conditions)
+
+    # =====================================================
+    # COUNT QUERY
+    # =====================================================
+    count_query = """
+        SELECT COUNT(*) AS total
+        FROM dbo.monitoring_link mm
+        LEFT JOIN dbo.user u
+            ON u.userid = mm.user_input
+    """
+
+    count_query_full = count_query + where_clause
+
+    count_df = pd.read_sql(
+        count_query_full,
+        conn_dsn,
+        params=params
+    )
+
+    total_data = (
+        int(count_df.at[0, "total"])
+        if not count_df.empty else 0
+    )
+
+    total_pages = (
+        (total_data + per_page - 1) // per_page
+    )
+
+    # =====================================================
+    # FINAL QUERY
+    # =====================================================
+    query_full = query + where_clause
+
+    query_full += """
+        ORDER BY mm.tgl_input DESC, mm.id DESC
+    """
+
+    query_full += f"""
+        LIMIT {per_page}
+        OFFSET {offset}
+    """
+
+    print("📡 QUERY:")
+    print(query_full)
+
+    print("📦 PARAMS:")
+    print(params)
+
+    try:
+
+        df = pd.read_sql(
+            query_full,
+            conn_dsn,
+            params=params
+        )
+
+        result = df.to_dict(orient="records")
+
+        return jsonify({
+            "logged_in_as": current_user,
+            "role": role,
+            "data": result,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total_data": total_data,
+                "total_pages": total_pages
+            }
+        }), 200
+
+    except Exception as e:
+
+        import traceback
+        traceback.print_exc()
+
+        return make_response(
+            jsonify({
+                "message": "Gagal ambil data monitoring",
+                "error": str(e)
+            }),
+            500
+        )
 
 
-# ================= GET BY ID =================
+# =========================================================
+# GET BY ID
+# =========================================================
 @MenuMonitoring.route("/<int:id>", methods=["GET"])
 @single_session_required
 def get_MenuMonitoring_by_id(id):
@@ -63,17 +292,23 @@ def get_MenuMonitoring_by_id(id):
             id,
             medsos,
             tema,
-            tgl_input,
+
+            TO_CHAR(tgl_input, 'YYYY-MM-DD') AS tgl_input,
+
             user_input,
             link,
             username,
             title,
-            view,
-            liked,
-            comment,
-            share,
-            saved,
-            engagement
+
+            COALESCE(view, '0') AS view,
+            COALESCE(liked, '0') AS liked,
+            COALESCE(comment, '0') AS comment,
+            COALESCE(share, '0') AS share,
+            COALESCE(saved, '0') AS saved,
+            COALESCE(engagement, '0') AS engagement,
+
+            video_id
+
         FROM dbo.monitoring_link
         WHERE id = ?
     """
@@ -87,19 +322,19 @@ def get_MenuMonitoring_by_id(id):
         )
 
         if df.empty:
+
             return jsonify({
                 "message": "Data tidak ditemukan"
             }), 404
 
-        # convert date -> string
-        if 'tgl_input' in df.columns:
-            df['tgl_input'] = df['tgl_input'].astype(str)
-
-        return jsonify(
-            data=df.to_dict(orient="records")[0]
-        ), 200
+        return jsonify({
+            "data": df.to_dict(orient="records")[0]
+        }), 200
 
     except Exception as e:
+
+        import traceback
+        traceback.print_exc()
 
         return make_response(
             jsonify({
@@ -109,7 +344,9 @@ def get_MenuMonitoring_by_id(id):
         )
 
 
-# ================= DELETE =================
+# =========================================================
+# DELETE
+# =========================================================
 @MenuMonitoring.route("/<int:id>", methods=["DELETE"])
 @single_session_required
 def delete_MenuMonitoring(id):
@@ -122,178 +359,19 @@ def delete_MenuMonitoring(id):
 
         cursor = conn_dsn.cursor()
 
-        cursor.execute(
-            "DELETE FROM dbo.monitoring_link WHERE id = ?",
-            (id,)
-        )
+        cursor.execute("""
+            DELETE FROM dbo.monitoring_link
+            WHERE id = ?
+        """, (id,))
 
         conn_dsn.commit()
 
         cursor.close()
 
-        return jsonify(
-            logged_in_as=current_user,
-            message="Data berhasil dihapus",
-            id=id
-        ), 200
-
-    except Exception as e:
-
         return jsonify({
-            "message": str(e)
-        }), 500
-
-
-# ================= CREATE =================
-@MenuMonitoring.route("", methods=["POST"])
-@single_session_required
-def create_MenuMonitoring():
-
-    try:
-
-        conn_dsn = conn.dsn()
-
-        current_user = get_jwt_identity()
-
-        data = request.get_json()
-
-        medsos = data.get("medsos")
-        tema = data.get("tema")
-        link = data.get("link")
-        username = data.get("username")
-        title = data.get("title")
-
-        view = data.get("view", "0")
-        liked = data.get("liked", "0")
-        comment = data.get("comment", "0")
-        share = data.get("share", "0")
-        saved = data.get("saved", "0")
-        engagement = data.get("engagement", "0")
-
-        if not medsos or not link:
-
-            return jsonify({
-                "message": "medsos & link wajib diisi"
-            }), 400
-
-        query = """
-            INSERT INTO dbo.monitoring_link
-            (
-                medsos,
-                tema,
-                tgl_input,
-                user_input,
-                link,
-                username,
-                title,
-                view,
-                liked,
-                comment,
-                share,
-                saved,
-                engagement
-            )
-            VALUES
-            (
-                ?, ?, CURRENT_DATE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-        """
-
-        with conn_dsn.cursor() as cursor:
-
-            cursor.execute(query, (
-                medsos,
-                tema,
-                current_user,
-                link,
-                username,
-                title,
-                view,
-                liked,
-                comment,
-                share,
-                saved,
-                engagement
-            ))
-
-            conn_dsn.commit()
-
-        return jsonify({
-            "message": "Monitoring berhasil ditambahkan"
-        }), 201
-
-    except Exception as e:
-
-        import traceback
-        traceback.print_exc()
-
-        return jsonify({
-            "error": str(e)
-        }), 500
-
-
-# ================= UPDATE =================
-@MenuMonitoring.route("/<int:id>", methods=["PUT"])
-@single_session_required
-def update_MenuMonitoring(id):
-
-    try:
-
-        conn_dsn = conn.dsn()
-
-        data = request.get_json()
-
-        medsos = data.get("medsos")
-        tema = data.get("tema")
-        link = data.get("link")
-        username = data.get("username")
-        title = data.get("title")
-
-        view = data.get("view", "0")
-        liked = data.get("liked", "0")
-        comment = data.get("comment", "0")
-        share = data.get("share", "0")
-        saved = data.get("saved", "0")
-        engagement = data.get("engagement", "0")
-
-        query = """
-            UPDATE dbo.monitoring_link
-            SET
-                medsos = ?,
-                tema = ?,
-                link = ?,
-                username = ?,
-                title = ?,
-                view = ?,
-                liked = ?,
-                comment = ?,
-                share = ?,
-                saved = ?,
-                engagement = ?
-            WHERE id = ?
-        """
-
-        with conn_dsn.cursor() as cursor:
-
-            cursor.execute(query, (
-                medsos,
-                tema,
-                link,
-                username,
-                title,
-                view,
-                liked,
-                comment,
-                share,
-                saved,
-                engagement,
-                id
-            ))
-
-            conn_dsn.commit()
-
-        return jsonify({
-            "message": "Monitoring berhasil diupdate"
+            "logged_in_as": current_user,
+            "message": "Data berhasil dihapus",
+            "id": id
         }), 200
 
     except Exception as e:
@@ -302,5 +380,5 @@ def update_MenuMonitoring(id):
         traceback.print_exc()
 
         return jsonify({
-            "error": str(e)
+            "message": str(e)
         }), 500

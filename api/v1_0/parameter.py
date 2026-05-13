@@ -124,6 +124,28 @@ def sosmed():
     return jsonify(logged_in_as=current_user, data=result), 200
 
 
+@parameter.route("/wilayah-input", methods=["GET"])
+@single_session_required
+def wilayah_monitoring():
+
+    conn_dsn = conn.dsn()
+
+    query = """
+        SELECT DISTINCT
+            u.kota AS nama_value
+        FROM dbo.inputan_link mm
+        LEFT JOIN dbo.user u
+            ON u.userid = mm.user_input
+        WHERE u.kota IS NOT NULL
+        ORDER BY u.kota
+    """
+
+    df = pd.read_sql(query, conn_dsn)
+
+    result = df.to_dict(orient="records")
+
+    return jsonify(data=result), 200
+
 @parameter.route("/user/profile", methods=["GET"])
 @single_session_required
 def get_profil():
