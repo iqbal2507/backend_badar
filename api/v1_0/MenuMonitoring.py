@@ -37,6 +37,7 @@ def get_MenuMonitoring():
     tgl_akhir = request.args.get("tgl_akhir")
     search_username = request.args.get("search_username")
     wilayah_filter = request.args.get("wilayah", "").strip()
+    tema_filter = request.args.get("tema", "").strip()
 
     # =========================
     # PAGINATION
@@ -52,6 +53,7 @@ def get_MenuMonitoring():
     print("tgl_akhir =", tgl_akhir)
     print("search_username =", search_username)
     print("wilayah_filter =", wilayah_filter)
+    print("tema_filter =", tema_filter)
 
     # =====================================================
     # BASE QUERY
@@ -133,21 +135,29 @@ def get_MenuMonitoring():
     # FILTER MEDSOS
     # =====================================================
     if medsos_filter and medsos_filter.upper() != "ALL":
-
         where_conditions.append("""
             UPPER(mm.medsos) = UPPER(?)
         """)
 
         params.append(medsos_filter)
 
-        # =====================================================
-        # FILTER wilayah
-        # =====================================================
+    # =====================================================
+    # FILTER TEMA
+    # =====================================================
+    if tema_filter and tema_filter.upper() != "ALL":
+        where_conditions.append("""
+            UPPER(mm.tema) = UPPER(?)
+        """)
 
+        params.append(tema_filter)
+
+    # =====================================================
+    # FILTER wilayah
+    # =====================================================
     if wilayah_filter and wilayah_filter.upper() != "ALL":
         where_conditions.append("""
-             UPPER(u.kota) = UPPER(?)
-         """)
+            UPPER(u.kota) = UPPER(?)
+        """)
 
         params.append(wilayah_filter)
 

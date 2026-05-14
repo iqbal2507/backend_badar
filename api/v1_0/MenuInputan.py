@@ -23,6 +23,7 @@ def get_MenuInputan():
 
     # Ambil parameter filter dari query string
     medsos_filter = request.args.get("medsos", "").strip()
+    tema_filter = request.args.get("tema", "").strip()
     tgl_awal = request.args.get("tgl_awal")
     tgl_akhir = request.args.get("tgl_akhir")
 
@@ -31,7 +32,7 @@ def get_MenuInputan():
     per_page = int(request.args.get("per_page", 30))
     offset = (page - 1) * per_page
 
-    print(f"🔍 FILTER PARAMS: medsos={medsos_filter}, tgl_awal={tgl_awal}, tgl_akhir={tgl_akhir}")
+    print(f"🔍 FILTER PARAMS: medsos={medsos_filter},tema={tema_filter}, tgl_awal={tgl_awal}, tgl_akhir={tgl_akhir}")
     print(f"📄 PAGINATION: page={page}, per_page={per_page}, offset={offset}")
 
     # Base query
@@ -85,6 +86,12 @@ def get_MenuInputan():
         where_conditions.append("UPPER(il.medsos) = UPPER(?)")
         params.append(medsos_filter)
         print(f"✅ Adding medsos filter: {medsos_filter}")
+
+    # Filter by tema
+    if tema_filter and tema_filter.upper() != "ALL":
+        where_conditions.append("UPPER(il.tema) = UPPER(?)")
+        params.append(tema_filter)
+        print(f"✅ Adding tema filter: {tema_filter}")
 
     # Filter by date range
     if tgl_awal:
@@ -289,13 +296,14 @@ def update_MenuInputan(id):
         link = data.get("link")
 
         # Validasi
-        if not medsos or not link:
-            return jsonify({"message": "medsos & link wajib diisi"}), 400
+        if not medsos or not link or not tema:
+            return jsonify({"message": "medsos, tema & link wajib diisi"}), 400
 
         # ================= CEK DUPLICATE LINK =================
         duplicate_query = """
             SELECT 
                 il.link,
+                il.tema,
                 il.user_input,
                 il.tgl_input,
                 u.kota

@@ -7,6 +7,7 @@ from api.v1_0.MenuKegiatan import MenuKegiatan
 from api.v1_0.MenuUser import MenuUser
 from api.v1_0.MenuInputan import MenuInputan
 from api.v1_0.MenuMonitoring import MenuMonitoring
+from api.v1_0.MenuDashboard import MenuDashboard
 
 api_v1_0 = Blueprint('api_v1_0', __name__,url_prefix="/api/v1.0")
 api_v1_0.register_blueprint(auth, url_prefix="/")
@@ -17,3 +18,4 @@ api_v1_0.register_blueprint(MenuKegiatan, url_prefix="/MenuKegiatan")
 api_v1_0.register_blueprint(MenuUser, url_prefix="/MenuUser")
 api_v1_0.register_blueprint(MenuInputan, url_prefix="/MenuInputan")
 api_v1_0.register_blueprint(MenuMonitoring, url_prefix="/MenuMonitoring")
+api_v1_0.register_blueprint(MenuDashboard, url_prefix="/MenuDashboard")
