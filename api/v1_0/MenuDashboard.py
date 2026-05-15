@@ -458,22 +458,28 @@ def get_content_stats_by_wilayah():
                 COALESCE(SUM(CAST(ml.comment AS BIGINT)),0) AS total_comment,
                 COALESCE(SUM(CAST(ml.share AS BIGINT)),0) AS total_share,
                 COALESCE(SUM(CAST(ml.saved AS BIGINT)),0) AS total_saved,
-
                 COALESCE(AVG(CAST(ml.engagement AS NUMERIC)),0) AS engagement
 
             FROM dbo.monitoring_link ml
             LEFT JOIN dbo.user u
                 ON u.userid = ml.user_input
 
-            WHERE UPPER(u.kota) = UPPER(?)
-            AND EXTRACT(MONTH FROM ml.tgl_input) = ?
+            WHERE EXTRACT(MONTH FROM ml.tgl_input) = ?
             AND EXTRACT(YEAR FROM ml.tgl_input) = ?
+        """
 
+        params = [month, year]
+
+        # ✅ FILTER WILAYAH HANYA JIKA BUKAN ALL
+        if wilayah and wilayah.upper() != "ALL":
+            query += " AND UPPER(u.kota) = UPPER(?) "
+            params.append(wilayah)
+
+        query += """
             GROUP BY u.kota, ml.username
             ORDER BY engagement DESC
         """
 
-        params = [wilayah, month, year]
 
         print("========== BY WILAYAH ==========")
         print(f"Wilayah: {wilayah}")
