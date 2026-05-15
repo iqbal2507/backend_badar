@@ -146,6 +146,29 @@ def wilayah_monitoring():
 
     return jsonify(data=result), 200
 
+
+@parameter.route("/wilayah-userid", methods=["GET"])
+@single_session_required
+def wilayah_userid():
+
+    conn_dsn = conn.dsn()
+    user = get_jwt_identity()
+
+    query = """
+        SELECT DISTINCT
+            u.kota AS nama_value
+        FROM dbo.user u
+        WHERE u.userid = ?
+        ORDER BY u.kota
+    """
+
+    df = pd.read_sql(query, conn_dsn, params=[user])
+
+    result = df.to_dict(orient="records")
+
+    return jsonify(data=result), 200
+
+
 @parameter.route("/user/profile", methods=["GET"])
 @single_session_required
 def get_profil():
