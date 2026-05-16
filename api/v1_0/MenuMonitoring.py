@@ -238,7 +238,7 @@ def get_MenuMonitoring():
     query_full = query + where_clause
 
     query_full += """
-        ORDER BY mm.tgl_input DESC, mm.id DESC
+         ORDER BY COALESCE(CAST(mm.engagement AS NUMERIC), 0) DESC,mm.tgl_input DESC,mm.medsos
     """
 
     query_full += f"""
